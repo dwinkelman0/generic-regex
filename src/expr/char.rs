@@ -108,7 +108,7 @@ mod tests {
     }
 
     #[test]
-    fn test_sequence_and_choice() {
+    fn test_choice_of_sequence() {
         let expr = (CharExpr::Char('a') + CharExpr::Char('b') | CharExpr::Char('c')).into_core_expr();
         let matcher = expr.compile();
         assert!(matcher.match_sequence(&as_slice("ab")));
@@ -119,16 +119,67 @@ mod tests {
         assert!(!matcher.match_sequence(&as_slice("bc")));
     }
 
+    #[test]
+    fn test_repeat() {
+        let expr = CharExpr::Repeat(Box::new(CharExpr::Char('a'))).into_core_expr();
+        let matcher = expr.compile();
+        println!("{:?}", matcher);
+        assert!(matcher.match_sequence(&as_slice("")));
+        assert!(matcher.match_sequence(&as_slice("a")));
+        assert!(matcher.match_sequence(&as_slice("aa")));
+        assert!(matcher.match_sequence(&as_slice("aaa")));
+        assert!(!matcher.match_sequence(&as_slice("b")));
+        assert!(!matcher.match_sequence(&as_slice("ab")));
+    }
+
+    #[test]
+    fn test_null() {
+        let expr = CharExpr::Null.into_core_expr();
+        let matcher = expr.compile();
+        assert!(matcher.match_sequence(&as_slice("")));
+        assert!(!matcher.match_sequence(&as_slice("a")));
+    }
+
+    #[test]
+    fn test_repeat_of_sequence() {
+        let expr = CharExpr::Repeat(Box::new(CharExpr::Char('a') + CharExpr::Char('b'))).into_core_expr();
+        let matcher = expr.compile();
+        assert!(matcher.match_sequence(&as_slice("")));
+        assert!(matcher.match_sequence(&as_slice("ab")));
+        assert!(matcher.match_sequence(&as_slice("abab")));
+        assert!(matcher.match_sequence(&as_slice("ababab")));
+        assert!(!matcher.match_sequence(&as_slice("a")));
+        assert!(!matcher.match_sequence(&as_slice("b")));
+        assert!(!matcher.match_sequence(&as_slice("aba")));
+        assert!(!matcher.match_sequence(&as_slice("abb")));
+    }
+
+    #[test]
+    fn test_repeat_of_choice() {
+        let expr = CharExpr::Repeat(Box::new(CharExpr::Char('a') | CharExpr::Char('b'))).into_core_expr();
+        let matcher = expr.compile();
+        assert!(matcher.match_sequence(&as_slice("")));
+        assert!(matcher.match_sequence(&as_slice("a")));
+        assert!(matcher.match_sequence(&as_slice("b")));
+        assert!(matcher.match_sequence(&as_slice("aa")));
+        assert!(matcher.match_sequence(&as_slice("ab")));
+        assert!(matcher.match_sequence(&as_slice("ba")));
+        assert!(matcher.match_sequence(&as_slice("bb")));
+        assert!(!matcher.match_sequence(&as_slice("c")));
+        assert!(!matcher.match_sequence(&as_slice("ac")));
+        assert!(!matcher.match_sequence(&as_slice("abc")));
+    }
+
     // #[test]
-    // fn test_repeat() {
-    //     let expr = CharExpr::Repeat(Box::new(CharExpr::Char('a'))).into_core_expr();
+    // fn test_choice_of_repeat() {
+    //     let expr = (CharExpr::Repeat(Box::new(CharExpr::Char('a'))) | CharExpr::Repeat(Box::new(CharExpr::Char('b')))).into_core_expr();
     //     let matcher = expr.compile();
-    //     println!("{:?}", matcher);
     //     assert!(matcher.match_sequence(&as_slice("")));
     //     assert!(matcher.match_sequence(&as_slice("a")));
     //     assert!(matcher.match_sequence(&as_slice("aa")));
     //     assert!(matcher.match_sequence(&as_slice("aaa")));
-    //     assert!(!matcher.match_sequence(&as_slice("b")));
+    //     assert!(matcher.match_sequence(&as_slice("b")));
     //     assert!(!matcher.match_sequence(&as_slice("ab")));
+    //     assert!(!matcher.match_sequence(&as_slice("bbbba")));
     // }
 }

@@ -126,6 +126,7 @@ impl<'a, T: TerminalMatcher> Matcher<'a, T> {
 
         let mut current_states = BTreeSet::new();
         current_states.insert(0);
+        extend_epsilons(&mut current_states);
         for terminal in string {
             if current_states.is_empty() {
                 return false;
