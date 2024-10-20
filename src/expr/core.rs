@@ -29,7 +29,7 @@ pub trait ExprExtension<'a, T: TerminalMatcher> {
 
 #[derive(Debug)]
 struct TransitionFunc<'a, T: TerminalMatcher> {
-    terminals: BTreeMap<usize, &'a T>,
+    terminals: BTreeMap<usize, Vec<&'a T>>,
     epsilons: BTreeSet<usize>,
 }
 
@@ -37,7 +37,7 @@ impl<'a, T: TerminalMatcher> TransitionFunc<'a, T> {
     fn get_terminal_transitions(&self, terminal: &T::Terminal) -> BTreeSet<usize> {
         self.terminals
             .iter()
-            .filter_map(|(state, matcher)| matcher.matches(terminal).then_some(*state))
+            .filter_map(|(state, matchers)| matchers.iter().any(|matcher| matcher.matches(terminal)).then_some(*state))
             .collect()
     }
 }
@@ -76,7 +76,11 @@ impl<'a, T: TerminalMatcher> Matcher<'a, T> {
     fn expand(&mut self, expr: &'a CoreExpr<T>, start_state: usize, end_state: usize) {
         match expr {
             CoreExpr::Terminal(matcher) => {
-                self.transition_funcs[start_state].terminals.insert(end_state, matcher);
+                self.transition_funcs[start_state]
+                    .terminals
+                    .entry(end_state)
+                    .or_insert(vec![])
+                    .push(matcher);
             }
             CoreExpr::Sequence(exprs) => {
                 let mut prev_state = start_state;
