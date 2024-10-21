@@ -13,6 +13,8 @@ pub enum CoreExpr<T: TerminalMatcher> {
     Terminal(T),
     Sequence(Vec<CoreExpr<T>>),
     Choice(Vec<CoreExpr<T>>),
+    OneOrMore(Box<CoreExpr<T>>),
+    ZeroOrOne(Box<CoreExpr<T>>),
     Repeat(Box<CoreExpr<T>>),
     Null,
 }
@@ -96,10 +98,22 @@ impl<'a, T: TerminalMatcher> Matcher<'a, T> {
                     self.expand(expr, start_state, end_state);
                 }
             }
-            CoreExpr::Repeat(expr) => {
+            CoreExpr::OneOrMore(expr) => {
+                let injected_state = self.create_new_state();
+                self.transition_funcs[injected_state].epsilons.insert(end_state);
+                self.expand(expr, start_state, injected_state);
+                self.expand(expr, injected_state, injected_state);
+            }
+            CoreExpr::ZeroOrOne(expr) => {
                 self.transition_funcs[start_state].epsilons.insert(end_state);
-                self.transition_funcs[end_state].epsilons.insert(start_state);
                 self.expand(expr, start_state, end_state);
+            }
+            CoreExpr::Repeat(expr) => {
+                let injected_state = self.create_new_state();
+                self.transition_funcs[start_state].epsilons.insert(injected_state);
+                self.transition_funcs[injected_state].epsilons.insert(end_state);
+                self.expand(expr, start_state, injected_state);
+                self.expand(expr, injected_state, injected_state);
             }
             CoreExpr::Null => {
                 self.transition_funcs[start_state].epsilons.insert(end_state);
@@ -108,7 +122,6 @@ impl<'a, T: TerminalMatcher> Matcher<'a, T> {
     }
 
     pub fn match_sequence(&self, string: &[T::Terminal]) -> bool {
-        println!("Matching sequence: {:?}", string);
         let extend_epsilons = |states: &mut BTreeSet<usize>| {
             // Expand epsilon transitions until no more states are added
             // TODO: resolve epsilon expansion when the matcher is constructed
@@ -138,7 +151,6 @@ impl<'a, T: TerminalMatcher> Matcher<'a, T> {
             }
             current_states = next_states;
             extend_epsilons(&mut current_states);
-            println!("Current states: {:?}", current_states);
         }
         current_states.contains(&self.end_state)
     }

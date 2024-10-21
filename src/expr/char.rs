@@ -1,14 +1,15 @@
 use super::core::{CoreExpr, ExprExtension, TerminalMatcher};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CharRule {
     Char(char),
     Alpha,
     Num,
     Whitespace,
+    Any,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct CharMatcher {
     rule: CharRule,
 }
@@ -22,18 +23,22 @@ impl TerminalMatcher for CharMatcher {
             CharRule::Alpha => terminal.is_alphabetic(),
             CharRule::Num => terminal.is_numeric(),
             CharRule::Whitespace => terminal.is_whitespace(),
+            CharRule::Any => true,
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CharExpr {
     Char(char),
     Alpha,
     Num,
     Whitespace,
+    Any,
     Sequence(Vec<CharExpr>),
     Choice(Vec<CharExpr>),
+    OneOrMore(Box<CharExpr>),
+    ZeroOrOne(Box<CharExpr>),
     Repeat(Box<CharExpr>),
     Null,
 }
@@ -47,8 +52,11 @@ impl ExprExtension<'_, CharMatcher> for CharExpr {
             CharExpr::Whitespace => CoreExpr::Terminal(CharMatcher {
                 rule: CharRule::Whitespace,
             }),
+            CharExpr::Any => CoreExpr::Terminal(CharMatcher { rule: CharRule::Any }),
             CharExpr::Sequence(exprs) => CoreExpr::Sequence(exprs.iter().map(|expr| expr.into_core_expr()).collect()),
             CharExpr::Choice(exprs) => CoreExpr::Choice(exprs.iter().map(|expr| expr.into_core_expr()).collect()),
+            CharExpr::OneOrMore(expr) => CoreExpr::OneOrMore(Box::new(expr.into_core_expr())),
+            CharExpr::ZeroOrOne(expr) => CoreExpr::ZeroOrOne(Box::new(expr.into_core_expr())),
             CharExpr::Repeat(expr) => CoreExpr::Repeat(Box::new(expr.into_core_expr())),
             CharExpr::Null => CoreExpr::Null,
         }
@@ -123,7 +131,6 @@ mod tests {
     fn test_repeat() {
         let expr = CharExpr::Repeat(Box::new(CharExpr::Char('a'))).into_core_expr();
         let matcher = expr.compile();
-        println!("{:?}", matcher);
         assert!(matcher.match_sequence(&as_slice("")));
         assert!(matcher.match_sequence(&as_slice("a")));
         assert!(matcher.match_sequence(&as_slice("aa")));
@@ -170,16 +177,29 @@ mod tests {
         assert!(!matcher.match_sequence(&as_slice("abc")));
     }
 
-    // #[test]
-    // fn test_choice_of_repeat() {
-    //     let expr = (CharExpr::Repeat(Box::new(CharExpr::Char('a'))) | CharExpr::Repeat(Box::new(CharExpr::Char('b')))).into_core_expr();
-    //     let matcher = expr.compile();
-    //     assert!(matcher.match_sequence(&as_slice("")));
-    //     assert!(matcher.match_sequence(&as_slice("a")));
-    //     assert!(matcher.match_sequence(&as_slice("aa")));
-    //     assert!(matcher.match_sequence(&as_slice("aaa")));
-    //     assert!(matcher.match_sequence(&as_slice("b")));
-    //     assert!(!matcher.match_sequence(&as_slice("ab")));
-    //     assert!(!matcher.match_sequence(&as_slice("bbbba")));
-    // }
+    #[test]
+    fn test_choice_of_repeat() {
+        let expr = (CharExpr::Repeat(Box::new(CharExpr::Char('a'))) | CharExpr::Repeat(Box::new(CharExpr::Char('b')))).into_core_expr();
+        let matcher = expr.compile();
+        assert!(matcher.match_sequence(&as_slice("")));
+        assert!(matcher.match_sequence(&as_slice("a")));
+        assert!(matcher.match_sequence(&as_slice("aa")));
+        assert!(matcher.match_sequence(&as_slice("aaa")));
+        assert!(matcher.match_sequence(&as_slice("b")));
+        assert!(!matcher.match_sequence(&as_slice("ab")));
+        assert!(!matcher.match_sequence(&as_slice("bbbba")));
+    }
+
+    #[test]
+    fn test_greedy_search() {
+        let expr = (CharExpr::Repeat(Box::new(CharExpr::Any)) + CharExpr::Char('a')).into_core_expr();
+        let matcher = expr.compile();
+        assert!(matcher.match_sequence(&as_slice("a")));
+        assert!(matcher.match_sequence(&as_slice("ba")));
+        assert!(matcher.match_sequence(&as_slice("bba")));
+        assert!(matcher.match_sequence(&as_slice("bbba")));
+        assert!(!matcher.match_sequence(&as_slice("")));
+        assert!(!matcher.match_sequence(&as_slice("b")));
+        assert!(!matcher.match_sequence(&as_slice("bbbab")));
+    }
 }
